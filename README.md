@@ -1,4 +1,11 @@
-# Meraki MSP Toolkit v0.2.0
+# Meraki MSP Toolkit v0.2.1
+
+## v0.2.1 - Claim New Hardware reliability fix
+
+- Fixed the post-organization-claim handoff to the target network. Meraki can briefly return **Device not found** while a newly claimed device propagates; the Toolkit now retries propagation-style network-claim failures with bounded backoff and read-back verification instead of immediately failing the workflow.
+- Tightened new-hardware serial validation to the Meraki device format `XXXX-XXXX-XXXX`, preventing hashes/internal IDs from being submitted as serials.
+- Claim result reports now distinguish **organization inventory claim** failures from **network assignment** failures.
+- Existing dry-run, typed confirmation, compatibility checks, and final organization + network verification remain in place.
 
 ## v0.2.0 - Final release
 
