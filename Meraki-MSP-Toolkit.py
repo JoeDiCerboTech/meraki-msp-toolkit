@@ -6461,7 +6461,54 @@ class Toolkit(tk.Tk):
                 except Exception as exc:
                     bulk_error=str(exc)
                     self._emit("log",f"Bulk organization claim returned an error: {bulk_error}")
-                    if len(to_org_claim)<=8:
+                    low=bulk_error.casefold()
+                    transient_bulk=(
+                        "not found" in low
+                        or "try again" in low
+                        or "temporar" in low
+                        or "timeout" in low
+                        or "connection failed" in low
+                        or "propagat" in low
+                    )
+
+                    # A newly shipped/unclaimed serial can briefly lag in Meraki's
+                    # claim backend even though Dashboard can claim it moments later.
+                    # For a single-device job, retry transient organization-claim
+                    # failures with bounded backoff before declaring the serial bad.
+                    if len(to_org_claim)==1 and transient_bulk:
+                        serial=to_org_claim[0]
+                        key=norm_serial(serial)
+                        last_error=bulk_error
+                        for retry,delay in enumerate((3,7),1):
+                            set_status(
+                                f"Step 2/4 · Organization claim not ready for {serial} "
+                                f"· retry {retry}/2 in {delay}s..."
+                            )
+                            time.sleep(delay)
+                            try:
+                                api.post(f"/organizations/{quoted_oid}/inventory/claim",{"serials":[serial]})
+                                self._emit("log",f"Organization claim retry {retry}/2 accepted for {serial}.")
+                                last_error=""
+                                break
+                            except Exception as one_exc:
+                                last_error=str(one_exc)
+                                self._emit("log",f"Organization claim retry {retry}/2 failed for {serial}: {last_error}")
+                                retry_low=last_error.casefold()
+                                transient_retry=(
+                                    "not found" in retry_low
+                                    or "try again" in retry_low
+                                    or "temporar" in retry_low
+                                    or "timeout" in retry_low
+                                    or "connection failed" in retry_low
+                                    or "propagat" in retry_low
+                                )
+                                if not transient_retry:
+                                    break
+                        if last_error:
+                            org_claim_errors[key]=last_error
+                    elif len(to_org_claim)<=8:
+                        # Non-transient bulk errors are retried individually so one
+                        # bad serial does not hide the result for the rest of the batch.
                         for serial in to_org_claim:
                             try:
                                 api.post(f"/organizations/{quoted_oid}/inventory/claim",{"serials":[serial]})
@@ -6471,13 +6518,20 @@ class Toolkit(tk.Tk):
                         for serial in to_org_claim:
                             org_claim_errors[norm_serial(serial)]=bulk_error
 
-                # Inventory claim propagation can lag briefly. Re-read until all successful candidates appear or timeout.
-                for attempt in range(6):
+                # Inventory claim propagation can lag briefly. Always re-read even
+                # after an API error because the backend may complete asynchronously.
+                for attempt in range(8):
                     target_inv=api.get_all(f"/organizations/{quoted_oid}/inventory/devices")
                     invmap=self._inventory_by_serial(target_inv)
-                    missing=[s for s in to_org_claim if norm_serial(s) not in invmap and norm_serial(s) not in org_claim_errors]
-                    if not missing: break
-                    if attempt<5: time.sleep(2)
+                    missing=[s for s in to_org_claim if norm_serial(s) not in invmap]
+                    if not missing:
+                        break
+                    if attempt<7:
+                        set_status(
+                            f"Step 2/4 · Waiting for organization inventory propagation "
+                            f"({attempt+1}/8)..."
+                        )
+                        time.sleep(2)
 
                 for serial in to_org_claim:
                     key=norm_serial(serial); r=result[key]; dev=invmap.get(key)
