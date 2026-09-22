@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Meraki MSP Toolkit v0.2.0
+"""Meraki MSP Toolkit v0.2.1
 
 Single-window controller for Meraki MSP automation tools.
 - Standard-library only (Tkinter + urllib)
@@ -46,7 +46,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog, filedialog
 
 APP_NAME = "Meraki MSP Toolkit"
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.2.1"
 BASE_URL = "https://api.meraki.com/api/v1"
 ROOT = Path(__file__).resolve().parent
 TOOLS = ROOT / "tools"
@@ -6251,14 +6251,14 @@ class Toolkit(tk.Tk):
         out=[]; seen=set(); bad=[]
         for token in tokens:
             token=token.strip("[](){}<>\"'")
-            if not re.fullmatch(r"[A-Z0-9][A-Z0-9-]{3,39}",token):
+            if not re.fullmatch(r"[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}",token):
                 bad.append(token); continue
             key=norm_serial(token)
             if not key or key in seen:
                 continue
             seen.add(key); out.append(token)
         if bad:
-            raise RuntimeError("Invalid serial token(s): " + ", ".join(bad[:8]) + ("..." if len(bad)>8 else ""))
+            raise RuntimeError("Invalid Meraki device serial token(s) (expected XXXX-XXXX-XXXX): " + ", ".join(bad[:8]) + ("..." if len(bad)>8 else ""))
         if not out:
             raise RuntimeError("Paste or scan at least one Meraki serial number.")
         if len(out)>100:
@@ -6482,7 +6482,8 @@ class Toolkit(tk.Tk):
                 for serial in to_org_claim:
                     key=norm_serial(serial); r=result[key]; dev=invmap.get(key)
                     if not dev:
-                        r["status"]="FAIL"; r["reason"]=org_claim_errors.get(key,"Not present in destination inventory after organization claim")
+                        detail=org_claim_errors.get(key,"Not present in destination inventory after organization claim")
+                        r["status"]="FAIL"; r["reason"]="Organization inventory claim failed: " + detail
                         continue
                     r["model"]=str(dev.get("model") or ""); r["product"]=self._delete_device_product_type(dev) or "unknown"
                     existing_nid=dev.get("networkId")
@@ -6507,16 +6508,79 @@ class Toolkit(tk.Tk):
 
             network_errors={}
             if eligible:
-                set_status(f"Step 3/4 · Assigning {len(eligible)} compatible device(s) to network...")
-                try:
-                    response=api.post(f"/networks/{quoted_nid}/devices/claim?addAtomically=false",{"serials":eligible}) or {}
-                    for err in response.get("errors") or []:
-                        key=norm_serial(str(err.get("serial") or ""))
-                        msgs=err.get("errors") or []
-                        network_errors[key]="; ".join(str(x) for x in msgs) or "Network claim failed"
-                except Exception as exc:
-                    for serial in eligible:
-                        network_errors[norm_serial(serial)]=str(exc)
+                # Meraki documents that devices may take time to become usable by
+                # network-level API calls immediately after an organization claim.
+                # Retry only propagation-style failures and verify after every attempt.
+                pending=list(eligible)
+                last_network_errors={}
+                retry_delays=(0,2,4,8,12,18)
+                for attempt,delay in enumerate(retry_delays,1):
+                    if not pending:
+                        break
+                    if delay:
+                        set_status(f"Step 3/4 · Waiting {delay}s for Meraki claim propagation...")
+                        time.sleep(delay)
+                    set_status(
+                        f"Step 3/4 · Assigning {len(pending)} device(s) to network "
+                        f"· attempt {attempt}/{len(retry_delays)}..."
+                    )
+                    attempt_errors={}
+                    try:
+                        response=api.post(
+                            f"/networks/{quoted_nid}/devices/claim?addAtomically=false",
+                            {"serials":pending},
+                        ) or {}
+                        for err in response.get("errors") or []:
+                            key=norm_serial(str(err.get("serial") or ""))
+                            msgs=err.get("errors") or []
+                            msg="; ".join(str(x) for x in msgs) or "Network claim failed"
+                            if key:
+                                attempt_errors[key]=msg
+                                last_network_errors[key]=msg
+                    except Exception as exc:
+                        msg=str(exc)
+                        for serial in pending:
+                            key=norm_serial(serial)
+                            attempt_errors[key]=msg
+                            last_network_errors[key]=msg
+
+                    # A successful claim can still take a moment to appear in the
+                    # network device list. Read back before deciding whether to retry.
+                    try:
+                        current_devices=api.get_all(f"/networks/{quoted_nid}/devices")
+                        current_serials={
+                            norm_serial(str(d.get("serial") or ""))
+                            for d in current_devices
+                        }
+                    except Exception:
+                        current_serials=set()
+
+                    next_pending=[]
+                    for serial in pending:
+                        key=norm_serial(serial)
+                        if key in current_serials:
+                            network_errors.pop(key,None)
+                            continue
+                        msg=attempt_errors.get(key) or last_network_errors.get(key) or ""
+                        low=msg.casefold()
+                        transient=(
+                            not msg
+                            or "not found" in low
+                            or "recently claimed" in low
+                            or "already claimed" in low
+                            or "try again" in low
+                            or "temporar" in low
+                            or "propagat" in low
+                        )
+                        if transient and attempt < len(retry_delays):
+                            next_pending.append(serial)
+                        else:
+                            network_errors[key]=(
+                                msg
+                                or "Device was claimed into organization inventory but did not become "
+                                   "assignable to the target network before the propagation timeout."
+                            )
+                    pending=next_pending
 
             set_status("Step 4/4 · Re-reading inventory and network for verification...")
             final_inv=[]; final_devices=[]
@@ -6546,7 +6610,10 @@ class Toolkit(tk.Tk):
                     r["status"]="PASS"; r["reason"]="Verified in destination inventory and target network"
                 else:
                     r["status"]="FAIL"
-                    r["reason"]=network_errors.get(key) or f"Verification failed (inventory target={inv_ok}, network list={net_ok})"
+                    if network_errors.get(key):
+                        r["reason"]="Network assignment failed: " + network_errors[key]
+                    else:
+                        r["reason"]=f"Verification failed (inventory target={inv_ok}, network list={net_ok})"
 
             # Verify rows that were already assigned at start in both places too.
             for serial in serials:
