@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Meraki MSP Toolkit v0.2.1
+"""Meraki MSP Toolkit v0.2.2
 
 Single-window controller for Meraki MSP automation tools.
 - Standard-library only (Tkinter + urllib)
@@ -46,7 +46,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog, filedialog
 
 APP_NAME = "Meraki MSP Toolkit"
-APP_VERSION = "0.2.1"
+APP_VERSION = "0.2.2"
 BASE_URL = "https://api.meraki.com/api/v1"
 ROOT = Path(__file__).resolve().parent
 TOOLS = ROOT / "tools"
