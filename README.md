@@ -1,4 +1,12 @@
-# Meraki MSP Toolkit v0.2.1
+# Meraki MSP Toolkit v0.2.2
+
+## v0.2.2 - Windows Defender packaging hardening
+
+- Replaced the BAT -> WScript/VBS -> hidden PowerShell launch chain with a transparent BAT launcher that starts Python directly.
+- Removed `-ExecutionPolicy Bypass`, hidden PowerShell execution, and the VBS launcher.
+- Removed the old nested `Meraki-MSP-Toolkit-v0.2.0.zip` archive from the source tree so GitHub source downloads contain only the current source files.
+- No Meraki API workflow logic was changed by this packaging hardening release.
+- Bumped the GUI/application version to v0.2.2.
 
 ## v0.2.1 - Claim New Hardware reliability fix
 
