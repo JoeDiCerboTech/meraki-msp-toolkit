@@ -1,4 +1,11 @@
-# Meraki MSP Toolkit v0.2.3
+# Meraki MSP Toolkit v0.2.4
+
+## v0.2.4 - Video 10 presenter controls
+
+- Added a built-in Branch 1 presenter workflow for Video 10 that fills the real Network Builder Tk variables directly instead of relying on screen coordinates.
+- Press `F8` to load and preview `DiCerbo Demo - Branch 1` in `Zodiac technology` with Single LAN `10.20.20.0/24`, appliance IP `10.20.20.1`, and the fake Branch 1 site address.
+- Press `F9` only after reviewing the dry run to open the normal guarded CREATE confirmation.
+- The regular Builder safety controls remain in place.
 
 ## v0.2.3 - Meraki API v1 authentication fix
 
