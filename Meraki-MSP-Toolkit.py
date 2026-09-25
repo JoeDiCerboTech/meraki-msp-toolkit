@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Meraki MSP Toolkit v0.2.2
+"""Meraki MSP Toolkit v0.2.3
 
 Single-window controller for Meraki MSP automation tools.
 - Standard-library only (Tkinter + urllib)
@@ -46,7 +46,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog, filedialog
 
 APP_NAME = "Meraki MSP Toolkit"
-APP_VERSION = "0.2.2"
+APP_VERSION = "0.2.3"
 BASE_URL = "https://api.meraki.com/api/v1"
 ROOT = Path(__file__).resolve().parent
 TOOLS = ROOT / "tools"
@@ -175,7 +175,7 @@ class MerakiAPI:
         url = path if path.startswith("http") else BASE_URL + path
         data = None
         headers = {
-            "X-Cisco-Meraki-API-Key": self.api_key,
+            "Authorization": f"Bearer {self.api_key}",
             "Accept": "application/json",
             "User-Agent": f"Meraki-MSP-Toolkit/{APP_VERSION}",
         }
@@ -225,7 +225,7 @@ class MerakiAPI:
             req = urllib.request.Request(
                 full,
                 headers={
-                    "X-Cisco-Meraki-API-Key": self.api_key,
+                    "Authorization": f"Bearer {self.api_key}",
                     "Accept": "application/json",
                     "User-Agent": f"Meraki-MSP-Toolkit/{APP_VERSION}",
                 },
