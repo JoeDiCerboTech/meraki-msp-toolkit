@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Meraki MSP Toolkit v0.2.3
+"""Meraki MSP Toolkit v0.2.4
 
 Single-window controller for Meraki MSP automation tools.
 - Standard-library only (Tkinter + urllib)
@@ -46,7 +46,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog, filedialog
 
 APP_NAME = "Meraki MSP Toolkit"
-APP_VERSION = "0.2.3"
+APP_VERSION = "0.2.4"
 BASE_URL = "https://api.meraki.com/api/v1"
 ROOT = Path(__file__).resolve().parent
 TOOLS = ROOT / "tools"
@@ -266,6 +266,8 @@ class Toolkit(tk.Tk):
         self.search_busy = False
         self._configure_style()
         self._build_shell()
+        self.bind("<F8>", self._video10_branch1_preview_hotkey)
+        self.bind("<F9>", self._video10_branch1_create_hotkey)
         self._install_context_menus()
         self.after(100, self._drain_queue)
 
@@ -512,6 +514,7 @@ class Toolkit(tk.Tk):
 
     def _build_builder(self):
         f = self._panel("Network Builder", "Create a network in an existing organization or create a brand-new organization first. Preview is mandatory before Apply.")
+        self.builder_tab = f
         self.nb.add(f, text="Network Builder")
         form=ttk.Frame(f,style="Panel.TFrame"); form.pack(fill="x",padx=18,pady=6)
 
