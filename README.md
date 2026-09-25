@@ -1,4 +1,10 @@
-# Meraki MSP Toolkit v0.2.2
+# Meraki MSP Toolkit v0.2.3
+
+## v0.2.3 - Meraki API v1 authentication fix
+
+- Updated all Dashboard API v1 requests from the legacy `X-Cisco-Meraki-API-Key` header to `Authorization: Bearer <API_KEY>`.
+- Fixes HTTP 401 `No valid authentication method found` responses with current Meraki Dashboard API v1 authentication requirements.
+- No workflow or safety behavior changed.
 
 ## v0.2.2 - Windows Defender packaging hardening
 
