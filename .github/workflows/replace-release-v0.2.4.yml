@@ -1,0 +1,90 @@
+name: Replace old release with v0.2.4
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - ".github/workflows/replace-release-v0.2.4.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@v4
+
+      - name: Build v0.2.4 package
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="Meraki-MSP-Toolkit-v0.2.4.zip"
+          rm -f "$ZIP"
+          zip -r "$ZIP" . \
+            -x ".git/*" \
+            -x ".github/*" \
+            -x "*.zip"
+          sha256sum "$ZIP" | tee /tmp/v0.2.4.sha256
+
+      - name: Build release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHA="$(awk '{print $1}' /tmp/v0.2.4.sha256)"
+          {
+            echo "# Meraki MSP Toolkit v0.2.4"
+            echo
+            echo "Latest public release of Meraki MSP Toolkit."
+            echo
+            echo "## v0.2.4 - Video 10 presenter controls"
+            echo
+            echo "- Added a built-in Branch 1 presenter workflow for Video 10 that fills the real Network Builder Tk variables directly instead of relying on screen coordinates."
+            echo "- Press F8 to load and preview DiCerbo Demo - Branch 1 in Zodiac technology with Single LAN 10.20.20.0/24 and appliance IP 10.20.20.1."
+            echo "- Press F9 only after reviewing the dry run to open the normal guarded CREATE confirmation."
+            echo "- The regular Builder safety controls remain in place."
+            echo
+            echo "## Included"
+            echo
+            echo "- Current Meraki MSP Toolkit code from main"
+            echo "- Network Builder and Post-Build workflows"
+            echo "- Hardware / Inventory lifecycle workflows"
+            echo "- Admin access and organization cleanup workflows"
+            echo "- Compliance and validation tooling"
+            echo "- Windows launcher"
+            echo
+            echo "## Download"
+            echo
+            echo "Download Meraki-MSP-Toolkit-v0.2.4.zip from Assets below."
+            echo
+            echo "SHA-256:"
+            echo
+            echo "\`$SHA\`"
+          } > /tmp/release-notes.md
+
+      - name: Replace old GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          gh release delete v0.2.0 \
+            --repo "$GITHUB_REPOSITORY" \
+            --cleanup-tag \
+            --yes || true
+
+          gh release delete v0.2.4 \
+            --repo "$GITHUB_REPOSITORY" \
+            --cleanup-tag \
+            --yes || true
+
+          gh release create v0.2.4 \
+            Meraki-MSP-Toolkit-v0.2.4.zip \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Meraki MSP Toolkit v0.2.4" \
+            --notes-file /tmp/release-notes.md \
+            --latest
