@@ -1,0 +1,91 @@
+name: Validate and republish v0.2.4
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - ".github/workflows/republish-v0.2.4-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out current code
+        uses: actions/checkout@v4
+
+      - name: Validate Python syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile Meraki-MSP-Toolkit.py
+
+      - name: Validate presenter hotkey handlers exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "def _video10_branch1_preview_hotkey" Meraki-MSP-Toolkit.py
+          grep -q "def _video10_branch1_create_hotkey" Meraki-MSP-Toolkit.py
+
+      - name: Build fixed v0.2.4 package
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="Meraki-MSP-Toolkit-v0.2.4.zip"
+          rm -f "$ZIP"
+          zip -r "$ZIP" . \
+            -x ".git/*" \
+            -x ".github/*" \
+            -x "__pycache__/*" \
+            -x "*.pyc" \
+            -x "*.zip"
+          sha256sum "$ZIP" | tee /tmp/v0.2.4.sha256
+
+      - name: Build release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHA="$(awk '{print $1}' /tmp/v0.2.4.sha256)"
+          {
+            echo "# Meraki MSP Toolkit v0.2.4"
+            echo
+            echo "Latest public release of Meraki MSP Toolkit."
+            echo
+            echo "## v0.2.4 - Video 10 presenter controls"
+            echo
+            echo "- Added the Branch 1 presenter workflow for Video 10."
+            echo "- F8 loads and previews DiCerbo Demo - Branch 1 in Zodiac technology with Single LAN 10.20.20.0/24 and appliance IP 10.20.20.1."
+            echo "- F9 opens the normal guarded CREATE confirmation only after a valid preview."
+            echo "- Fixed the missing presenter hotkey handlers that could prevent the application from starting."
+            echo "- Improved the Windows launcher so startup failures are shown instead of the window silently flashing closed."
+            echo
+            echo "## Download"
+            echo
+            echo "Download Meraki-MSP-Toolkit-v0.2.4.zip from Assets below."
+            echo
+            echo "SHA-256:"
+            echo
+            echo "\`$SHA\`"
+          } > /tmp/release-notes.md
+
+      - name: Replace v0.2.4 release with fixed package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release delete v0.2.4 \
+            --repo "$GITHUB_REPOSITORY" \
+            --cleanup-tag \
+            --yes
+
+          gh release create v0.2.4 \
+            Meraki-MSP-Toolkit-v0.2.4.zip \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "2536d0c328350faa7d78e59888372cddef16883a" \
+            --title "Meraki MSP Toolkit v0.2.4" \
+            --notes-file /tmp/release-notes.md \
+            --latest
