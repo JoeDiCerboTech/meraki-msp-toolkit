@@ -271,6 +271,72 @@ class Toolkit(tk.Tk):
         self._install_context_menus()
         self.after(100, self._drain_queue)
 
+    def _video10_branch1_preview_hotkey(self, event=None):
+        """Load the guarded Video 10 Branch 1 demo into the real Network Builder and run Preview."""
+        try:
+            if getattr(self, "builder_completed", False):
+                self.builder_reset()
+
+            # The demo must use the existing Zodiac technology organization.
+            org = next(
+                (o for o in self.orgs if str(o.get("name") or "").strip().casefold() == "zodiac technology"),
+                None,
+            )
+            if not org:
+                messagebox.showwarning(
+                    "Video 10 Branch 1",
+                    "Connect to Meraki first and make sure the 'Zodiac technology' organization is available.",
+                )
+                return "break"
+
+            self.selected_org_var.set(self._org_label(org))
+            self.on_org_change()
+            self.nb.select(self.builder_tab)
+
+            self.build_destination.set("Existing Organization")
+            self.build_mode.set("No Clone")
+            self.build_name.set("DiCerbo Demo - Branch 1")
+            self.build_tz.set("America/New_York")
+
+            for product, var in self.product_vars.items():
+                var.set(product in {"appliance", "switch", "wireless"})
+
+            self.build_addressing_mode.set("Single LAN")
+            self.builder_single_lan = {
+                "subnet": "10.20.20.0/24",
+                "applianceIp": "10.20.20.1",
+                "allowNonRfc1918": False,
+            }
+            self.builder_vlans = []
+            self.builder_vlan_allow_non_rfc1918 = False
+
+            # Clearly fake physical site information for the presenter demo.
+            self.build_site_street.set("100 Demo Way")
+            self.build_site_line2.set("")
+            self.build_site_city.set("New York")
+            self.build_site_state.set("NY")
+            self.build_site_postal.set("10001")
+            self.build_site_country.set("USA")
+            self.build_note.set(
+                "Video 10 presenter demo - Branch 1. Review all values before CREATE."
+            )
+
+            self._builder_destination_changed()
+            self._builder_addressing_changed()
+            self.builder_preview()
+        except Exception as exc:
+            messagebox.showerror("Video 10 Branch 1", str(exc))
+        return "break"
+
+    def _video10_branch1_create_hotkey(self, event=None):
+        """Open the normal guarded CREATE flow for the already-previewed Video 10 demo."""
+        try:
+            self.nb.select(self.builder_tab)
+            self.builder_apply()
+        except Exception as exc:
+            messagebox.showerror("Video 10 Branch 1", str(exc))
+        return "break"
+
     def report_callback_exception(self, exc, val, tb):
         """Log unhandled Tk callback errors when the GUI is launched without a console."""
         try:
