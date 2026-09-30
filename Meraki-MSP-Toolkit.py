@@ -272,12 +272,11 @@ class Toolkit(tk.Tk):
         self.after(100, self._drain_queue)
 
     def _video10_branch1_preview_hotkey(self, event=None):
-        """Load the guarded Video 10 Branch 1 demo into the real Network Builder and run Preview."""
+        """Load the guarded Video 10 Branch 1 demo and run Preview after org data is ready."""
         try:
             if getattr(self, "builder_completed", False):
                 self.builder_reset()
 
-            # The demo must use the existing Zodiac technology organization.
             org = next(
                 (o for o in self.orgs if str(o.get("name") or "").strip().casefold() == "zodiac technology"),
                 None,
@@ -289,44 +288,93 @@ class Toolkit(tk.Tk):
                 )
                 return "break"
 
+            org_id = str(org.get("id") or "")
+            try:
+                current = self.selected_org()
+                same_org = str(current.get("id") or "") == org_id
+            except Exception:
+                same_org = False
+
+            # If the correct org is already selected and its networks are loaded,
+            # do not refresh it again. A refresh is asynchronous and can update the
+            # clone-source control after Preview, which intentionally invalidates the
+            # saved preview signature.
+            if same_org and self.networks:
+                self._video10_branch1_fill_and_preview()
+                return "break"
+
             self.selected_org_var.set(self._org_label(org))
             self.on_org_change()
             self.nb.select(self.builder_tab)
-
-            self.build_destination.set("Existing Organization")
-            self.build_mode.set("No Clone")
-            self.build_name.set("DiCerbo Demo - Branch 1")
-            self.build_tz.set("America/New_York")
-
-            for product, var in self.product_vars.items():
-                var.set(product in {"appliance", "switch", "wireless"})
-
-            self.build_addressing_mode.set("Single LAN")
-            self.builder_single_lan = {
-                "subnet": "10.20.20.0/24",
-                "applianceIp": "10.20.20.1",
-                "allowNonRfc1918": False,
-            }
-            self.builder_vlans = []
-            self.builder_vlan_allow_non_rfc1918 = False
-
-            # Clearly fake physical site information for the presenter demo.
-            self.build_site_street.set("100 Demo Way")
-            self.build_site_line2.set("")
-            self.build_site_city.set("New York")
-            self.build_site_state.set("NY")
-            self.build_site_postal.set("10001")
-            self.build_site_country.set("USA")
-            self.build_note.set(
-                "Video 10 presenter demo - Branch 1. Review all values before CREATE."
+            self.builder_status_var.set("Video 10 · loading Zodiac technology networks...")
+            self.after(
+                150,
+                lambda oid=org_id: self._video10_branch1_wait_for_networks(oid, 0),
             )
-
-            self._builder_destination_changed()
-            self._builder_addressing_changed()
-            self.builder_preview()
         except Exception as exc:
             messagebox.showerror("Video 10 Branch 1", str(exc))
         return "break"
+
+    def _video10_branch1_wait_for_networks(self, org_id, attempt):
+        """Wait for the asynchronous org/network refresh before creating the demo preview."""
+        try:
+            current = self.selected_org()
+            same_org = str(current.get("id") or "") == str(org_id)
+        except Exception:
+            same_org = False
+
+        if same_org and self.networks:
+            self._video10_branch1_fill_and_preview()
+            return
+
+        if attempt >= 100:
+            self.builder_status_var.set("Video 10 · network refresh timed out")
+            messagebox.showwarning(
+                "Video 10 Branch 1",
+                "The organization was selected, but its networks did not finish loading. "
+                "Click Connect / Refresh and press F8 again.",
+            )
+            return
+
+        self.after(
+            150,
+            lambda oid=org_id, n=attempt + 1: self._video10_branch1_wait_for_networks(oid, n),
+        )
+
+    def _video10_branch1_fill_and_preview(self):
+        """Populate the real Network Builder variables used by the Video 10 Branch 1 demo."""
+        self.nb.select(self.builder_tab)
+
+        self.build_destination.set("Existing Organization")
+        self.build_mode.set("No Clone")
+        self.build_name.set("DiCerbo Demo - Branch 1")
+        self.build_tz.set("America/New_York")
+
+        for product, var in self.product_vars.items():
+            var.set(product in {"appliance", "switch", "wireless"})
+
+        self.build_addressing_mode.set("Single LAN")
+        self.builder_single_lan = {
+            "subnet": "10.20.20.0/24",
+            "applianceIp": "10.20.20.1",
+            "allowNonRfc1918": False,
+        }
+        self.builder_vlans = []
+        self.builder_vlan_allow_non_rfc1918 = False
+
+        self.build_site_street.set("100 Demo Way")
+        self.build_site_line2.set("")
+        self.build_site_city.set("New York")
+        self.build_site_state.set("NY")
+        self.build_site_postal.set("10001")
+        self.build_site_country.set("USA")
+        self.build_note.set(
+            "Video 10 presenter demo - Branch 1. Review all values before CREATE."
+        )
+
+        self._builder_destination_changed()
+        self._builder_addressing_changed()
+        self.builder_preview()
 
     def _video10_branch1_create_hotkey(self, event=None):
         """Open the normal guarded CREATE flow for the already-previewed Video 10 demo."""
@@ -430,7 +478,7 @@ class Toolkit(tk.Tk):
         top = ttk.Frame(self)
         top.pack(fill="x", padx=18, pady=(16, 8))
         ttk.Label(top, text="MERAKI MSP TOOLKIT", style="Title.TLabel").pack(side="left")
-        ttk.Label(top, text=f"Video 9 build · v{APP_VERSION}", style="Muted.TLabel").pack(side="left", padx=12, pady=(9, 0))
+        ttk.Label(top, text=f"Video 10 build · v{APP_VERSION}", style="Muted.TLabel").pack(side="left", padx=12, pady=(9, 0))
 
         connect = ttk.Frame(self, style="Panel.TFrame")
         connect.pack(fill="x", padx=18, pady=6)
